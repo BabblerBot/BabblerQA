@@ -48,13 +48,24 @@ class Configuration:
     Persist_directory = "./book-vectordb-chroma"
 
 
+def remove_project_gutenberg_sections(text):
+    start_marker = "*** START OF THE PROJECT GUTENBERG EBOOK"
+    end_marker = "*** END OF THE PROJECT GUTENBERG EBOOK"
+    start_index = text.find(start_marker)
+    start_end_index = text.find("***", start_index + len(start_marker))
+    end_index = text.find(end_marker)
+    text = text[start_end_index + 3 : end_index]
+    return text
+
+
 def select_book(book_id):
     formatted_url = f"https://www.gutenberg.org/cache/epub/{book_id}/pg{book_id}.txt"
     print(formatted_url)
     loader = GutenbergLoader(formatted_url)
-    book_content = loader.load()
+    book_content = loader.load()[0].page_content
+    filtered_book_content = remove_project_gutenberg_sections(book_content)
     print("Book content loaded.")
-    return book_content
+    return filtered_book_content
 
 
 book_embeddings = None
@@ -166,12 +177,14 @@ instructor_embeddings = HuggingFaceInstructEmbeddings(
 )
 book_content = None
 
+import time
+
 
 @app.get("/book")
 async def get_book(book_id: str):
     print("Getting book...")
     book_content = select_book(book_id)
-    create_book_embeddings(book_content)
+    # create_book_embeddings(book_content)
     return {"status": "success"}
 
 
