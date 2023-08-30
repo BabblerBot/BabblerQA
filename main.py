@@ -48,74 +48,13 @@ class Configuration:
     Persist_directory = "./book-vectordb-chroma"
 
 
-# Function to search for a book by name and return the best match URL
-def search_book_by_name(book_name):
-    base_url = "https://www.gutenberg.org/"
-    search_url = (
-        base_url
-        + "ebooks/search/?query="
-        + book_name.replace(" ", "+")
-        + "&submit_search=Go%21"
-    )
-
-    response = requests.get(search_url)
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    # Find the best match link based on similarity ratio
-    best_match_ratio = 0
-    best_match_url = ""
-
-    for link in soup.find_all("li", class_="booklink"):
-        link_title = link.find("span", class_="title").get_text()
-        similarity_ratio = difflib.SequenceMatcher(
-            None, book_name.lower(), link_title.lower()
-        ).ratio()
-        if similarity_ratio > best_match_ratio:
-            best_match_ratio = similarity_ratio
-            best_match_url = base_url + link.find("a").get("href")
-
-    return best_match_url
-
-
-# Function to get the "Plain Text UTF-8" download link from the book page
-def get_plain_text_link(book_url):
-    response = requests.get(book_url)
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    plain_text_link = ""
-
-    for row in soup.find_all("tr"):
-        format_cell = row.find("td", class_="unpadded icon_save")
-        if format_cell and "Plain Text UTF-8" in format_cell.get_text():
-            plain_text_link = format_cell.find("a").get("href")
-            break
-
-    return plain_text_link
-
-
-# Function to get the content of the "Plain Text UTF-8" link
-def get_plain_text_content(plain_text_link):
-    response = requests.get(plain_text_link)
-    content = response.text
-    return content
-
-
-def select_book(book_name):
-    best_match_url = search_book_by_name(book_name)
-
-    if best_match_url:
-        book_id = best_match_url.split("/")[-1]  # Extract the book ID
-        formatted_url = (
-            f"https://www.gutenberg.org/cache/epub/{book_id}/pg{book_id}.txt"
-        )
-        print(formatted_url)
-        loader = GutenbergLoader(formatted_url)
-        book_content = loader.load()
-        print("Book content loaded.")
-        return book_content
-    else:
-        print("No matching book found.")
-        return None
+def select_book(book_id):
+    formatted_url = f"https://www.gutenberg.org/cache/epub/{book_id}/pg{book_id}.txt"
+    print(formatted_url)
+    loader = GutenbergLoader(formatted_url)
+    book_content = loader.load()
+    print("Book content loaded.")
+    return book_content
 
 
 book_embeddings = None
@@ -229,9 +168,9 @@ book_content = None
 
 
 @app.get("/book")
-async def get_book(book_name: str):
+async def get_book(book_id: str):
     print("Getting book...")
-    book_content = select_book(book_name)
+    book_content = select_book(book_id)
     create_book_embeddings(book_content)
     return {"status": "success"}
 
