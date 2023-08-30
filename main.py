@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from langchain import PromptTemplate, ConversationChain, LLMChain
-
+from langchain.docstore.document import Document
 from langchain.vectorstores import Chroma
 
 from langchain.llms import HuggingFacePipeline
@@ -65,7 +65,9 @@ def select_book(book_id):
     book_content = loader.load()[0].page_content
     filtered_book_content = remove_project_gutenberg_sections(book_content)
     print("Book content loaded.")
-    return filtered_book_content
+    return [
+        Document(page_content=filtered_book_content, metadata={"source": formatted_url})
+    ]
 
 
 book_embeddings = None
@@ -162,7 +164,7 @@ def generate_answer_from_embeddings(query, book_embeddings):
 
 
 app = FastAPI()
-REPLICATE_API_TOKEN = "r8_KWM7ZPHF27SufFBDWyTQdAHvU07aUHm2aUjQh"
+REPLICATE_API_TOKEN = "r8_WZKVS0aaMS20lhyAn6UkoFOp0aLEwV90PEDwu"
 os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
 llm = Replicate(
     model="replicate/llama-2-70b-chat:2796ee9483c3fd7aa2e171d38f4ca12251a30609463dcfd4cd76703f22e96cdf",
@@ -177,14 +179,12 @@ instructor_embeddings = HuggingFaceInstructEmbeddings(
 )
 book_content = None
 
-import time
-
 
 @app.get("/book")
 async def get_book(book_id: str):
     print("Getting book...")
     book_content = select_book(book_id)
-    # create_book_embeddings(book_content)
+    create_book_embeddings(book_content)
     return {"status": "success"}
 
 
