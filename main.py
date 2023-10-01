@@ -5,6 +5,7 @@ import difflib
 from langchain.document_loaders import GutenbergLoader
 import os
 import uvicorn
+import chromadb
 
 import langchain
 from fastapi import FastAPI
@@ -58,6 +59,16 @@ def remove_project_gutenberg_sections(text):
     return text
 
 
+def does_book_exist(book_id):
+    print("Checking for existing instructor embeddings...")
+    client = chromadb.PersistentClient(path=Configuration.Persist_directory)
+    try:
+        client.get_collection(book_id)
+        return True
+    except ValueError:
+        return False
+
+
 def select_book(book_id):
     formatted_url = f"https://www.gutenberg.org/cache/epub/{book_id}/pg{book_id}.txt"
     print(formatted_url)
@@ -73,7 +84,7 @@ def select_book(book_id):
 book_embeddings = None
 
 
-def create_book_embeddings(book_content):
+def create_book_embeddings(book_content, book_id: str):
     global book_embeddings
     print("Creating instructor embeddings...")
     text_splitter = RecursiveCharacterTextSplitter(
@@ -83,21 +94,29 @@ def create_book_embeddings(book_content):
     print("Book content split into chunks.")
     texts = text_splitter.split_documents(book_content)
 
+    persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
+    collection = persistent_client.create_collection(book_id)
     print("Creating book embeddings...")
+    book_embeddings = Chroma.from_documents(
+        documents=texts,
+        collection=collection,
+        embedding=instructor_embeddings,
+    )
+
     # try:
     #     book_embeddings = Chroma.load(persist_directory = '.',
     #                            collection_name = 'book')
     # except:
-    book_embeddings = Chroma.from_documents(
-        documents=texts,
-        embedding=instructor_embeddings,
-        persist_directory="./embeddings/",
-        collection_name="book",
-    )
-    print("Book embeddings created.")
+    # book_embeddings = Chroma.from_documents(
+    #     documents=texts,
+    #     embedding=instructor_embeddings,
+    #     persist_directory="./embeddings/",
+    #     collection_name="book",
+    # )
 
     book_embeddings.add_documents(documents=texts, embedding=instructor_embeddings)
     book_embeddings.persist()
+    print("Book embeddings created.")
 
 
 def wrap_text_preserve_newlines(text, width=200):  # 110
@@ -182,9 +201,13 @@ book_content = None
 
 @app.get("/book")
 async def get_book(book_id: str):
+    has_book = does_book_exist(book_id)
+    if has_book:
+        return {"status": "success"}
+
     print("Getting book...")
     book_content = select_book(book_id)
-    create_book_embeddings(book_content)
+    create_book_embeddings(book_content, book_id)
     return {"status": "success"}
 
 
