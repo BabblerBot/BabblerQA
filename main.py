@@ -5,6 +5,7 @@ import difflib
 from langchain.document_loaders import GutenbergLoader
 import os
 import uvicorn
+import chromadb
 
 import langchain
 from fastapi import FastAPI
@@ -44,8 +45,7 @@ class Configuration:
 
     k = 3
 
-    Embeddings_path = "/book-vectordb-chroma"
-    Persist_directory = "./book-vectordb-chroma"
+    Persist_directory = "./embeddings/"
 
 
 def remove_project_gutenberg_sections(text):
@@ -56,6 +56,19 @@ def remove_project_gutenberg_sections(text):
     end_index = text.find(end_marker)
     text = text[start_end_index + 3 : end_index]
     return text
+
+
+def does_book_exist(book_id):
+    print("Checking for existing instructor embeddings...")
+    client = chromadb.PersistentClient(path=Configuration.Persist_directory)
+    try:
+        collection = client.get_collection(f"BabblerEmbedding-{book_id}")
+        print(
+            f"Found collection with {collection.count()} embeddings.\nWill be loaded when needed."
+        )
+        return True
+    except ValueError:
+        return False
 
 
 def select_book(book_id):
@@ -73,7 +86,7 @@ def select_book(book_id):
 book_embeddings = None
 
 
-def create_book_embeddings(book_content):
+def create_book_embeddings(book_content, book_id: str):
     global book_embeddings
     print("Creating instructor embeddings...")
     text_splitter = RecursiveCharacterTextSplitter(
@@ -83,21 +96,29 @@ def create_book_embeddings(book_content):
     print("Book content split into chunks.")
     texts = text_splitter.split_documents(book_content)
 
+    persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
     print("Creating book embeddings...")
+    book_embeddings = Chroma(
+        collection_name=f"BabblerEmbedding-{book_id}",
+        embedding_function=instructor_embeddings,
+        client=persistent_client,
+        persist_directory=Configuration.Persist_directory,
+    )
+
     # try:
     #     book_embeddings = Chroma.load(persist_directory = '.',
     #                            collection_name = 'book')
     # except:
-    book_embeddings = Chroma.from_documents(
-        documents=texts,
-        embedding=instructor_embeddings,
-        persist_directory="./embeddings/",
-        collection_name="book",
-    )
-    print("Book embeddings created.")
+    # book_embeddings = Chroma.from_documents(
+    #     documents=texts,
+    #     embedding=instructor_embeddings,
+    #     persist_directory="./embeddings/",
+    #     collection_name="book",
+    # )
 
-    book_embeddings.add_documents(documents=texts, embedding=instructor_embeddings)
+    book_embeddings.add_documents(documents=texts)
     book_embeddings.persist()
+    print("Book embeddings created.")
 
 
 def wrap_text_preserve_newlines(text, width=200):  # 110
@@ -134,21 +155,32 @@ PROMPT = PromptTemplate(
 )
 
 
-def generate_answer_from_embeddings(query, book_embeddings):
+def generate_answer_from_embeddings(query, book_id: str):
     """
     Retrieve documents from the vector database and then pass them to the language model to generate an answer.
 
     Args:
         query: The user's question.
-        book_embeddings: The embeddings of the book.
+        book_id: The id of the book to search.
 
     Returns:
         The answer to the question.
     """
+    # select books embeddings from database.
+    book_embeddings = Chroma(
+        persist_directory=Configuration.Persist_directory,
+        collection_name=f"BabblerEmbedding-{book_id}",
+        embedding_function=instructor_embeddings,
+    )
+    print(f"Loaded book embeddings from {book_embeddings._collection.name}")
     retriever = book_embeddings.as_retriever(
         search_kwargs={"k": Configuration.k, "search_type": "similarity"}
     )
     docs = book_embeddings.similarity_search(query)
+    # a = [doc.page_content for doc in docs]
+    # for i in a:
+    #     print(i)
+    # return "lorem ipsum"
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
@@ -182,13 +214,19 @@ book_content = None
 
 @app.get("/book")
 async def get_book(book_id: str):
+    has_book = does_book_exist(book_id)
+    if has_book:
+        return {"status": "success"}
+
     print("Getting book...")
     book_content = select_book(book_id)
-    create_book_embeddings(book_content)
+    create_book_embeddings(book_content, book_id)
     return {"status": "success"}
 
 
 @app.get("/answer")
-async def get_answer(query: str):
-    global book_embeddings
-    return generate_answer_from_embeddings(query, book_embeddings)
+async def get_answer(query: str, book_id: str):
+    has_book = does_book_exist(book_id)
+    if not has_book:
+        return {"status": "error", "message": "Book not found."}
+    return generate_answer_from_embeddings(query, book_id)
