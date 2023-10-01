@@ -83,11 +83,13 @@ def select_book(book_id):
     ]
 
 
-book_embeddings = None
-
-
 def create_book_embeddings(book_content, book_id: str):
-    global book_embeddings
+    instructor_embeddings = HuggingFaceInstructEmbeddings(
+        model_name=Configuration.embeddings_model_repo,
+        embed_instruction="Represent the document for retrieval",
+        model_kwargs={"device": "cuda"},
+    )
+
     print("Creating instructor embeddings...")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=Configuration.split_chunk_size,
@@ -166,6 +168,12 @@ def generate_answer_from_embeddings(query, book_id: str):
     Returns:
         The answer to the question.
     """
+    instructor_embeddings = HuggingFaceInstructEmbeddings(
+        model_name=Configuration.embeddings_model_repo,
+        embed_instruction="Represent the question for retrieving relevant documents",
+        model_kwargs={"device": "cuda"},
+    )
+
     # select books embeddings from database.
     book_embeddings = Chroma(
         persist_directory=Configuration.Persist_directory,
@@ -206,9 +214,7 @@ llm = Replicate(
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8001)
 
-instructor_embeddings = HuggingFaceInstructEmbeddings(
-    model_name=Configuration.embeddings_model_repo, model_kwargs={"device": "cuda"}
-)
+
 book_content = None
 
 
@@ -230,3 +236,17 @@ async def get_answer(query: str, book_id: str):
     if not has_book:
         return {"status": "error", "message": "Book not found."}
     return generate_answer_from_embeddings(query, book_id)
+
+
+# delete collection
+@app.get("/collection/delete")
+async def delete_collection(book_id: str):
+    persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
+    persistent_client.delete_collection(f"BabblerEmbedding-{book_id}")
+    return {"status": "success"}
+
+
+@app.get("/collection/list")
+async def list_collection():
+    persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
+    return persistent_client.list_collections()
