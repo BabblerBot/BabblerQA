@@ -19,7 +19,7 @@ from langchain.vectorstores import Chroma
 
 from langchain.llms import HuggingFacePipeline
 from InstructorEmbedding import INSTRUCTOR
-from langchain.embeddings import HuggingFaceInstructEmbeddings
+from langchain.embeddings import HuggingFaceInstructEmbeddings,  HuggingFaceBgeEmbeddings
 
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 
@@ -30,6 +30,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
 from langchain.llms import Replicate
 from langchain import PromptTemplate, LLMChain
+
+from langchain.llms import LlamaCpp
+from langchain.callbacks.manager import CallbackManager
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 
 class Configuration:
@@ -176,21 +180,23 @@ def generate_answer_from_embeddings(query, book_id: str):
     retriever = book_embeddings.as_retriever(
         search_kwargs={"k": Configuration.k, "search_type": "similarity"}
     )
-    docs = book_embeddings.similarity_search(query)
+    # docs = book_embeddings.similarity_search(query1, 1)
     # a = [doc.page_content for doc in docs]
     # for i in a:
     #     print(i)
     # return "lorem ipsum"
+
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever,
-        chain_type_kwargs={"prompt": PROMPT},
+        # chain_type_kwargs={"prompt": PROMPT},
         return_source_documents=True,
         verbose=False,
     )
     llm_response = qa_chain(query)
     ans = process_llm_response(llm_response)
+    # ans = process_llm_response(response)
 
     return ans
 
@@ -198,10 +204,39 @@ def generate_answer_from_embeddings(query, book_id: str):
 app = FastAPI()
 REPLICATE_API_TOKEN = "r8_WZKVS0aaMS20lhyAn6UkoFOp0aLEwV90PEDwu"
 os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
-llm = Replicate(
-    model="replicate/llama-2-70b-chat:2796ee9483c3fd7aa2e171d38f4ca12251a30609463dcfd4cd76703f22e96cdf",
-    input={"temperature": 0.75, "max_length": 500, "top_p": 1},
+
+callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+
+# llm = LlamaCpp(
+#     model_path="E:/Babbler/LLMs/llama-2-13b-chat.Q4_K_M.gguf",
+#     temperature=0.75,
+#     max_tokens=2000,
+#     top_p=1,
+#     callback_manager=callback_manager, 
+#     verbose=True, # Verbose is required to pass to the callback manager
+# )
+
+n_gpu_layers = 40  # Change this value based on your model and your GPU VRAM pool.
+n_batch = 512  # Should be between 1 and n_ctx, consider the amount of VRAM in your GPU.
+
+# Make sure the model path is correct for your system!
+llm = LlamaCpp(
+    model_path="E:/Babbler/LLMs/llama-2-13b-chat.Q4_K_M.gguf",
+    n_gpu_layers=n_gpu_layers,
+    n_batch=n_batch,
+    temperature=0.75,
+    n_ctx=2048,
+    top_p=1,
+    callback_manager=callback_manager,
+    verbose=True, # Verbose is required to pass to the callback manager
 )
+# llm_query = LLMChain(prompt=PROMPT, llm=llm)
+
+# llm = Replicate(
+#     model="replicate/llama-2-70b-chat:2796ee9483c3fd7aa2e171d38f4ca12251a30609463dcfd4cd76703f22e96cdf",
+#     input={"temperature": 0.75, "max_length": 500, "top_p": 1},
+# )
+# Callbacks support token-wise streaming
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8001)
@@ -209,6 +244,9 @@ if __name__ == "__main__":
 instructor_embeddings = HuggingFaceInstructEmbeddings(
     model_name=Configuration.embeddings_model_repo, model_kwargs={"device": "cuda"}
 )
+
+# bge_embeddings = HuggingFaceBgeEmbeddings(model_name = Configuration.embeddings_model_repo,
+#                                                       model_kwargs = {"device": "cuda"})
 book_content = None
 
 
@@ -230,3 +268,8 @@ async def get_answer(query: str, book_id: str):
     if not has_book:
         return {"status": "error", "message": "Book not found."}
     return generate_answer_from_embeddings(query, book_id)
+
+
+
+
+    # response = llm_query.run({"context": docs, "question": query1})
