@@ -1,6 +1,5 @@
 import textwrap
 import requests
-from bs4 import BeautifulSoup
 import difflib
 from langchain.document_loaders import GutenbergLoader
 import os
@@ -109,17 +108,6 @@ def create_book_embeddings(book_content, book_id: str):
         persist_directory=Configuration.Persist_directory,
     )
 
-    # try:
-    #     book_embeddings = Chroma.load(persist_directory = '.',
-    #                            collection_name = 'book')
-    # except:
-    # book_embeddings = Chroma.from_documents(
-    #     documents=texts,
-    #     embedding=instructor_embeddings,
-    #     persist_directory="./embeddings/",
-    #     collection_name="book",
-    # )
-
     book_embeddings.add_documents(documents=texts)
     book_embeddings.persist()
     print("Book embeddings created.")
@@ -180,63 +168,42 @@ def generate_answer_from_embeddings(query, book_id: str):
     retriever = book_embeddings.as_retriever(
         search_kwargs={"k": Configuration.k, "search_type": "similarity"}
     )
-    # docs = book_embeddings.similarity_search(query1, 1)
-    # a = [doc.page_content for doc in docs]
-    # for i in a:
-    #     print(i)
-    # return "lorem ipsum"
 
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever,
-        # chain_type_kwargs={"prompt": PROMPT},
+        chain_type_kwargs={"prompt": PROMPT},
         return_source_documents=True,
         verbose=False,
     )
     llm_response = qa_chain(query)
     ans = process_llm_response(llm_response)
-    # ans = process_llm_response(response)
 
     return ans
 
 
 app = FastAPI()
-REPLICATE_API_TOKEN = "r8_WZKVS0aaMS20lhyAn6UkoFOp0aLEwV90PEDwu"
-os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
 
+# Callbacks support token-wise streaming
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
-# llm = LlamaCpp(
-#     model_path="E:/Babbler/LLMs/llama-2-13b-chat.Q4_K_M.gguf",
-#     temperature=0.75,
-#     max_tokens=2000,
-#     top_p=1,
-#     callback_manager=callback_manager, 
-#     verbose=True, # Verbose is required to pass to the callback manager
-# )
-
-n_gpu_layers = 40  # Change this value based on your model and your GPU VRAM pool.
-n_batch = 512  # Should be between 1 and n_ctx, consider the amount of VRAM in your GPU.
+n_gpu_layers = 4  # Change this value based on your model and your GPU VRAM pool.
+n_batch = 2048  # Should be between 1 and n_ctx, consider the amount of VRAM in your GPU.
 
 # Make sure the model path is correct for your system!
 llm = LlamaCpp(
     model_path="E:/Babbler/LLMs/llama-2-13b-chat.Q4_K_M.gguf",
     n_gpu_layers=n_gpu_layers,
     n_batch=n_batch,
-    temperature=0.75,
+    temperature=0.2,
     n_ctx=2048,
     top_p=1,
     callback_manager=callback_manager,
     verbose=True, # Verbose is required to pass to the callback manager
 )
-# llm_query = LLMChain(prompt=PROMPT, llm=llm)
 
-# llm = Replicate(
-#     model="replicate/llama-2-70b-chat:2796ee9483c3fd7aa2e171d38f4ca12251a30609463dcfd4cd76703f22e96cdf",
-#     input={"temperature": 0.75, "max_length": 500, "top_p": 1},
-# )
-# Callbacks support token-wise streaming
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8001)
@@ -272,4 +239,3 @@ async def get_answer(query: str, book_id: str):
 
 
 
-    # response = llm_query.run({"context": docs, "question": query1})
