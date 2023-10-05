@@ -7,7 +7,7 @@ Welcome to the Babbler Bot QA Model repository. This sub-repo is responsible for
 
 The process flow involves:
 
-1. **Embedding Model**: This initial step creates embeddings of the model and stores them in the vector database.
+1. **Embedding Model**: This initial step creates embeddings of the books and stores them in the vector database.
 
 2. **User Query Processing**: When a user asks a question, it goes through the embedding model. The system then searches the vector database for similar embeddings and retrieves the top 3 relevant documents.
 
