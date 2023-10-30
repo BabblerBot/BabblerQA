@@ -191,6 +191,45 @@ PROMPT = PromptTemplate(
 )
 
 
+# def generate_answer_from_embeddings(query, book_id: str):
+#     """
+#     Retrieve documents from the vector database and then pass them to the language model to generate an answer.
+
+#     Args:
+#         query: The user's question.
+#         book_id: The id of the book to search.
+
+#     Returns:
+#         The answer to the question.
+#     """
+#     # select books embeddings from database.
+#     book_embeddings = Chroma(
+#         persist_directory=Configuration.Persist_directory,
+#         collection_name=f"BabblerEmbedding-{book_id}",
+#         embedding_function=instructor_embeddings,
+#     )
+#     print(f"Loaded book embeddings from {book_embeddings._collection.name}")
+#     retriever = book_embeddings.as_retriever(
+#         search_kwargs={"k": Configuration.k, "search_type": "similarity"}
+#     )
+#     docs = book_embeddings.similarity_search(query)
+#     # a = [doc.page_content for doc in docs]
+#     # for i in a:
+#     #     print(i)
+#     # return "lorem ipsum"
+#     qa_chain = RetrievalQA.from_chain_type(
+#         llm=llm,
+#         chain_type="stuff",
+#         retriever=retriever,
+#         chain_type_kwargs={"prompt": PROMPT},
+#         return_source_documents=True,
+#         verbose=False,
+#     )
+#     llm_response = qa_chain(query)
+#     ans = process_llm_response(llm_response)
+
+#     return ans
+
 def generate_answer_from_embeddings(query, book_id: str):
     """
     Retrieve documents from the vector database and then pass them to the language model to generate an answer.
@@ -203,16 +242,16 @@ def generate_answer_from_embeddings(query, book_id: str):
         The answer to the question.
     """
     # select books embeddings from database.
-    book_embeddings = Chroma(
-        persist_directory=Configuration.Persist_directory,
-        collection_name=f"BabblerEmbedding-{book_id}",
-        embedding_function=instructor_embeddings,
-    )
-    print(f"Loaded book embeddings from {book_embeddings._collection.name}")
+    # book_embeddings = Chroma(
+    #     persist_directory=Configuration.Persist_directory,
+    #     collection_name=f"BabblerEmbedding-{book_id}",
+    #     embedding_function=instructor_embeddings,
+    # )
+    # print(f"Loaded book embeddings from {book_embeddings._collection.name}")
     retriever = book_embeddings.as_retriever(
         search_kwargs={"k": Configuration.k, "search_type": "similarity"}
     )
-    docs = book_embeddings.similarity_search(query)
+    # docs = book_embeddings.similarity_search(query)
     # a = [doc.page_content for doc in docs]
     # for i in a:
     #     print(i)
@@ -230,7 +269,6 @@ def generate_answer_from_embeddings(query, book_id: str):
 
     return ans
 
-
 app = FastAPI()
 REPLICATE_API_TOKEN = "r8_KWM7ZPHF27SufFBDWyTQdAHvU07aUHm2aUjQh"
 os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
@@ -243,7 +281,7 @@ if __name__ == "__main__":
     uvicorn.run("main:app", port=8001)
 
 instructor_embeddings = HuggingFaceInstructEmbeddings(
-    model_name=Configuration.embeddings_model_repo, model_kwargs={"device": "cuda"}
+    model_name=Configuration.embeddings_model_repo, model_kwargs={"device": "cpu"}
 )
 book_content = None
 
