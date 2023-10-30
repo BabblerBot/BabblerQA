@@ -16,7 +16,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from langchain import PromptTemplate, ConversationChain, LLMChain
 from langchain.docstore.document import Document
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import Chroma, FAISS
 
 from langchain.llms import HuggingFacePipeline
 from InstructorEmbedding import INSTRUCTOR
@@ -59,16 +59,30 @@ def remove_project_gutenberg_sections(text):
     return text
 
 
+# def does_book_exist(book_id):
+#     print("Checking for existing instructor embeddings...")
+#     client = chromadb.PersistentClient(path=Configuration.Persist_directory)
+#     try:
+#         collection = client.get_collection(f"BabblerEmbedding-{book_id}")
+#         print(
+#             f"Found collection with {collection.count()} embeddings.\nWill be loaded when needed."
+#         )
+#         return True
+#     except ValueError:
+#         return False
+
+book_embeddings = None
+
 def does_book_exist(book_id):
+    global book_embeddings
     print("Checking for existing instructor embeddings...")
-    client = chromadb.PersistentClient(path=Configuration.Persist_directory)
     try:
-        collection = client.get_collection(f"BabblerEmbedding-{book_id}")
-        print(
-            f"Found collection with {collection.count()} embeddings.\nWill be loaded when needed."
+        book_embeddings = FAISS.load_local(
+            "BabblerEmbedding-{book_id}".format(book_id),
+            instructor_embeddings
         )
         return True
-    except ValueError:
+    except:
         return False
 
 
@@ -86,7 +100,41 @@ def select_book(book_id, book_name):
     ]
 
 
-book_embeddings = None
+
+
+# def create_book_embeddings(book_content, book_id: str):
+#     global book_embeddings
+#     print("Creating instructor embeddings...")
+#     text_splitter = RecursiveCharacterTextSplitter(
+#         chunk_size=Configuration.split_chunk_size,
+#         chunk_overlap=Configuration.split_overlap,
+#     )
+#     print("Book content split into chunks.")
+#     texts = text_splitter.split_documents(book_content)
+
+#     persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
+#     print("Creating book embeddings...")
+#     book_embeddings = Chroma(
+#         collection_name=f"BabblerEmbedding-{book_id}",
+#         embedding_function=instructor_embeddings,
+#         client=persistent_client,
+#         persist_directory=Configuration.Persist_directory,
+#     )
+
+#     # try:
+#     #     book_embeddings = Chroma.load(persist_directory = '.',
+#     #                            collection_name = 'book')
+#     # except:
+#     # book_embeddings = Chroma.from_documents(
+#     #     documents=texts,
+#     #     embedding=instructor_embeddings,
+#     #     persist_directory="./embeddings/",
+#     #     collection_name="book",
+#     # )
+
+#     book_embeddings.add_documents(documents=texts)
+#     book_embeddings.persist()
+#     print("Book embeddings created.")
 
 
 def create_book_embeddings(book_content, book_id: str):
@@ -98,31 +146,16 @@ def create_book_embeddings(book_content, book_id: str):
     )
     print("Book content split into chunks.")
     texts = text_splitter.split_documents(book_content)
-
-    persistent_client = chromadb.PersistentClient(Configuration.Persist_directory)
     print("Creating book embeddings...")
-    book_embeddings = Chroma(
-        collection_name=f"BabblerEmbedding-{book_id}",
-        embedding_function=instructor_embeddings,
-        client=persistent_client,
-        persist_directory=Configuration.Persist_directory,
+    book_embeddings = FAISS.from_documents(
+        documents=texts,
+        embedding=instructor_embeddings,
     )
-
-    # try:
-    #     book_embeddings = Chroma.load(persist_directory = '.',
-    #                            collection_name = 'book')
-    # except:
-    # book_embeddings = Chroma.from_documents(
-    #     documents=texts,
-    #     embedding=instructor_embeddings,
-    #     persist_directory="./embeddings/",
-    #     collection_name="book",
-    # )
-
-    book_embeddings.add_documents(documents=texts)
-    book_embeddings.persist()
     print("Book embeddings created.")
-
+    book_embeddings.save_local(
+        "BabblerEmbedding-{book_id}".format(book_id)
+    )
+    print("Book embeddings saved.")
 
 def wrap_text_preserve_newlines(text, width=200):  # 110
     # Split the input text into lines based on newline characters
