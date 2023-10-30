@@ -203,7 +203,12 @@ REPLICATE_API_TOKEN = "r8_KWM7ZPHF27SufFBDWyTQdAHvU07aUHm2aUjQh"
 os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
 llm = Replicate(
     model="meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3",
-    input={"temperature": 0.75, "max_length": 500, "top_p": 0.95, "repetition_penalty": 1.15},
+    input={
+        "temperature": 0.75,
+        "max_length": 500,
+        "top_p": 0.95,
+        "repetition_penalty": 1.15,
+    },
 )
 
 if __name__ == "__main__":
@@ -229,6 +234,7 @@ async def get_book(book_id: str, book_name: str):
 
 @app.get("/answer")
 async def get_answer(query: str, book_id: str):
+    # return "Lorem ipsum"
     has_book = does_book_exist(book_id)
     if not has_book:
         return {"status": "error", "message": "Book not found."}
