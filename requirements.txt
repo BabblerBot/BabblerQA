@@ -16,4 +16,4 @@ requests
 uvicorn
 sentencepiece
 torch
-
+wikipedia

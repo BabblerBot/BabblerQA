@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import difflib
 from langchain.document_loaders import GutenbergLoader
+from langchain.document_loaders import WikipediaLoader
 import os
 import uvicorn
 import chromadb
@@ -71,12 +72,14 @@ def does_book_exist(book_id):
         return False
 
 
-def select_book(book_id):
+def select_book(book_id, book_name):
     formatted_url = f"https://www.gutenberg.org/cache/epub/{book_id}/pg{book_id}.txt"
     print(formatted_url)
     loader = GutenbergLoader(formatted_url)
+    docs = WikipediaLoader(query=book_name, load_max_docs=1).load()[0].page_content
     book_content = loader.load()[0].page_content
     filtered_book_content = remove_project_gutenberg_sections(book_content)
+    filtered_book_content = docs + filtered_book_content
     print("Book content loaded.")
     return [
         Document(page_content=filtered_book_content, metadata={"source": formatted_url})
@@ -213,13 +216,13 @@ book_content = None
 
 
 @app.get("/book")
-async def get_book(book_id: str):
+async def get_book(book_id: str, book_name: str):
     has_book = does_book_exist(book_id)
     if has_book:
         return {"status": "success"}
 
     print("Getting book...")
-    book_content = select_book(book_id)
+    book_content = select_book(book_id, book_name)
     create_book_embeddings(book_content, book_id)
     return {"status": "success"}
 
