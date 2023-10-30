@@ -199,11 +199,11 @@ def generate_answer_from_embeddings(query, book_id: str):
 
 
 app = FastAPI()
-REPLICATE_API_TOKEN = "r8_WZKVS0aaMS20lhyAn6UkoFOp0aLEwV90PEDwu"
+REPLICATE_API_TOKEN = "r8_KWM7ZPHF27SufFBDWyTQdAHvU07aUHm2aUjQh"
 os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
 llm = Replicate(
-    model="replicate/llama-2-70b-chat:2796ee9483c3fd7aa2e171d38f4ca12251a30609463dcfd4cd76703f22e96cdf",
-    input={"temperature": 0.75, "max_length": 500, "top_p": 1},
+    model="meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3",
+    input={"temperature": 0.75, "max_length": 500, "top_p": 0.95, "repetition_penalty": 1.15},
 )
 
 if __name__ == "__main__":
